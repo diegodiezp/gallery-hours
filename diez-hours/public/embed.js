@@ -29,13 +29,8 @@
     return { date: p.year + '-' + p.month + '-' + p.day, time: p.hour + ':' + p.minute };
   }
 
-  // '13:00' -> '1pm', '12:30' -> '12:30pm', '00:15' -> '12:15am'
-  function t12(hhmm) {
-    var h = +hhmm.slice(0, 2), m = hhmm.slice(3);
-    var suffix = h < 12 ? 'am' : 'pm';
-    h = h % 12 || 12;
-    return h + (m === '00' ? '' : ':' + m) + suffix;
-  }
+  // Formato 24h: '13:00' se muestra tal cual.
+  function t(hhmm) { return hhmm; }
 
   function isoToDate(iso) {
     var a = iso.split('-').map(Number);
@@ -59,7 +54,7 @@
   }
 
   function stateText(s, now) {
-    if (s.open) return 'Open until ' + t12(s.until) + '.';
+    if (s.open) return 'Open until ' + t(s.until) + '.';
     if (!s.next) return 'Closed. Visits by appointment.';
     var d = daysBetween(now.date, s.next.date);
     var when =
@@ -67,7 +62,7 @@
       d === 1 ? 'tomorrow' :
       d < 7 ? fmt(s.next.date, { weekday: 'long' }) :
       fmt(s.next.date, { weekday: 'long', day: 'numeric', month: 'long' });
-    return 'Closed. Opens ' + when + ' at ' + t12(s.next.from) + '.';
+    return 'Closed. Opens ' + when + ' at ' + t(s.next.from) + '.';
   }
 
   function add(parent, cls, text) {
@@ -81,7 +76,7 @@
     if (!data) return;
     var now = nowAms();
     var s = computeStatus(now);
-    var clock = fmt(now.date, { weekday: 'long', day: 'numeric', month: 'long' }) + ', ' + t12(now.time);
+    var clock = fmt(now.date, { weekday: 'long', day: 'numeric', month: 'long' }) + ', ' + t(now.time);
     var state = stateText(s, now);
 
     document.querySelectorAll(SELECTOR).forEach(function (el) {
