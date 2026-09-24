@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Diez hours">
+<meta name="theme-color" content="#ffffff">
+<title>Diez hours</title>
+<style>
+  :root {
+    --wall: #ffffff;
+    --ink: #000000;
+    --grey: #6b6b6b;
+    --rule: #e0e0e0;
+    --open: #0a7a3d;
+    --font: "Replica", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html, body { margin: 0; background: var(--wall); color: var(--ink); font-family: var(--font); -webkit-text-size-adjust: 100%; }
+  body { font-size: 17px; line-height: 1.4; }
+  main { max-width: 32rem; margin: 0 auto; padding: 1rem 1.25rem 5rem; }
+  [hidden] { display: none !important; }
+
+  .state { padding: 1.5rem 0 1.75rem; border-bottom: 1px solid var(--rule); }
+  .state-word { margin: 0; font-size: clamp(4.5rem, 26vw, 8rem); line-height: .88; letter-spacing: -.045em; font-weight: 500; }
+  .state[data-open="true"] .state-word { color: var(--open); }
+  .state-line { margin: .75rem 0 0; font-size: 1.3rem; }
+  .state-meta { margin: .3rem 0 0; color: var(--grey); }
+
+  section { padding: 1.5rem 0; border-bottom: 1px solid var(--rule); }
+  section:last-of-type { border-bottom: 0; }
+  h1, h2 { font-size: 1rem; font-weight: 500; margin: 0 0 1rem; }
+  h1 { font-size: 2rem; letter-spacing: -.02em; margin: 2rem 0 1.5rem; }
+
+  .stack > * + * { margin-top: .75rem; }
+  .row { display: flex; gap: .75rem; align-items: flex-end; }
+  .row > .grow { flex: 1; min-width: 0; }
+
+  label { display: block; font-size: .9rem; color: var(--grey); margin-bottom: .35rem; }
+  input, select {
+    font: inherit; width: 100%; padding: .7rem .8rem; min-height: 3rem;
+    border: 1px solid var(--rule); border-radius: 10px; background: var(--wall); color: var(--ink);
+  }
+  button {
+    font: inherit; cursor: pointer; width: 100%; min-height: 3rem; padding: .7rem 1.2rem;
+    border: 1.5px solid var(--ink); border-radius: 999px; background: var(--wall); color: var(--ink);
+  }
+  button.primary { background: var(--ink); color: var(--wall); }
+  button.fit { width: auto; white-space: nowrap; }
+  button.link { border: 0; min-height: 0; padding: .25rem 0; width: auto; text-decoration: underline; color: var(--grey); }
+  button:disabled { opacity: .4; cursor: default; }
+  :focus-visible { outline: 3px solid var(--open); outline-offset: 2px; }
+
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; justify-content: space-between; gap: 1rem; padding: .9rem 0; border-top: 1px solid var(--rule); }
+  li:first-child { border-top: 0; padding-top: 0; }
+  .li-sub { color: var(--grey); font-size: .95rem; }
+  .empty { color: var(--grey); margin: 0; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+    transform: translate(-50%, 1rem); opacity: 0; transition: opacity .2s, transform .2s;
+    background: var(--ink); color: var(--wall); padding: .7rem 1.1rem; border-radius: 999px;
+    max-width: calc(100% - 2.5rem); pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast.error { background: #b00020; }
+  @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <form id="login" class="stack" hidden>
+    <h1>Diez hours</h1>
+    <div>
+      <label for="key">Admin key</label>
+      <input id="key" type="password" autocomplete="current-password" required>
+    </div>
+    <button class="primary" type="submit">Unlock</button>
+  </form>
+
+  <div id="app" hidden>
+    <div class="state" id="state">
+      <p class="state-word" id="stateWord">&nbsp;</p>
+      <p class="state-line" id="stateLine"></p>
+      <p class="state-meta" id="stateMeta"></p>
+    </div>
+
+    <section class="stack" aria-labelledby="todayTitle">
+      <h2 id="todayTitle">Today</h2>
+      <div class="row">
+        <div class="grow">
+          <label for="hereUntil">I'm at the gallery until</label>
+          <input id="hereUntil" type="time" step="900" value="18:00">
+        </div>
+        <button class="primary fit" id="openNow" type="button">Open now</button>
+      </div>
+      <button id="closeToday" type="button">Close today</button>
+      <button id="resetToday" type="button" hidden>Back to regular hours</button>
+    </section>
+
+    <section aria-labelledby="planTitle">
+      <h2 id="planTitle">Plan a change</h2>
+      <form id="plan" class="stack">
+        <div class="row">
+          <div class="grow">
+            <label for="planDate">Date</label>
+            <input id="planDate" type="date" required>
+          </div>
+          <div class="grow">
+            <label for="planStatus">Gallery is</label>
+            <select id="planStatus">
+              <option value="Closed">Closed</option>
+              <option value="Open">Open</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" id="planHours" hidden>
+          <div class="grow">
+            <label for="planFrom">From</label>
+            <input id="planFrom" type="time" step="900" value="12:00">
+          </div>
+          <div class="grow">
+            <label for="planUntil">Until</label>
+            <input id="planUntil" type="time" step="900" value="18:00">
+          </div>
+        </div>
+        <div>
+          <label for="planNote">Note shown on the website (optional)</label>
+          <input id="planNote" type="text" maxlength="140" placeholder="Closed for Art Cologne">
+        </div>
+        <button class="primary" type="submit">Save change</button>
+      </form>
+    </section>
+
+    <section aria-labelledby="listTitle">
+      <h2 id="listTitle">Coming up</h2>
+      <ul id="list"></ul>
+      <p class="empty" id="listEmpty">No changes planned. The website follows the regular hours.</p>
+    </section>
+
+    <button class="link" id="logout" type="button">Lock this device</button>
+  </div>
+</main>
+<p id="toast" role="status" aria-live="polite"></p>
+
+<script>
+  const TZ = 'Europe/Amsterdam';
+  const KEY_STORE = 'diezHoursKey';
+  const $ = (id) => document.getElementById(id);
+  let key = localStorage.getItem(KEY_STORE) || '';
+  let data = null;
+
+  function nowAms() {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+      timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+    return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+  }
+  const isoToDate = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, 12)); };
+  const fmt = (iso, opts) => new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', ...opts }).format(isoToDate(iso));
+  const longDate = (iso) => fmt(iso, { weekday: 'long', day: 'numeric', month: 'long' });
+  const daysBetween = (a, b) => Math.round((isoToDate(b) - isoToDate(a)) / 86400000);
+  const weekday = (iso) => isoToDate(iso).getUTCDay();
+
+  function computeStatus(schedule, now) {
+    const today = schedule.openings.find((o) => o.date === now.date);
+    if (today && now.time >= today.from && now.time < today.until) return { open: true, until: today.until };
+    const next = schedule.openings.find((o) => o.date > now.date || (o.date === now.date && o.from > now.time));
+    return { open: false, next };
+  }
+
+  function describeNext(next, now) {
+    if (!next) return 'No opening in the next 60 days';
+    const d = daysBetween(now.date, next.date);
+    const when = d === 0 ? 'today' : d === 1 ? 'tomorrow' : d < 7 ? fmt(next.date, { weekday: 'long' }) : longDate(next.date);
+    return `Opens ${when} at ${next.from}`;
+  }
+
+  function toast(msg, isError = false) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.toggle('error', isError);
+    t.classList.add('show');
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  async function api(method, body, query = '') {
+    const r = await fetch('/api/overrides' + query, {
+      method,
+      headers: { 'x-admin-key': key, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) { lock(); throw new Error('That key does not match ADMIN_KEY'); }
+    if (!r.ok) throw new Error(j.error || 'Request failed');
+    return j;
+  }
+
+  function lock() {
+    key = '';
+    localStorage.removeItem(KEY_STORE);
+    $('app').hidden = true;
+    $('login').hidden = false;
+  }
+
+  async function load() {
+    data = await api('GET');
+    $('login').hidden = true;
+    $('app').hidden = false;
+    render();
+  }
+
+  function render() {
+    if (!data) return;
+    const now = nowAms();
+    const s = computeStatus(data.schedule, now);
+    const todayOverride = data.overrides.find((o) => o.date === now.date);
+
+    $('state').dataset.open = s.open;
+    $('stateWord').textContent = s.open ? 'Open' : 'Closed';
+    $('stateLine').textContent = s.open ? `until ${s.until}` : describeNext(s.next, now);
+    $('stateMeta').textContent = `${longDate(now.date)}, ${now.time}` + (todayOverride ? '. Today differs from the regular hours.' : '');
+    $('resetToday').hidden = !todayOverride;
+    $('closeToday').hidden = todayOverride?.status === 'Closed';
+    $('openNow').textContent = s.open ? 'Update' : 'Open now';
+
+    const list = $('list');
+    list.innerHTML = '';
+    data.overrides.forEach((o) => {
+      const li = document.createElement('li');
+      const text = document.createElement('div');
+      const main = document.createElement('div');
+      main.textContent = `${longDate(o.date)}, ${o.status === 'Closed' ? 'closed' : `open ${o.from || ''} to ${o.until || ''}`}`;
+      text.appendChild(main);
+      if (o.note) {
+        const sub = document.createElement('div');
+        sub.className = 'li-sub';
+        sub.textContent = o.note;
+        text.appendChild(sub);
+      }
+      const del = document.createElement('button');
+      del.className = 'link';
+      del.type = 'button';
+      del.textContent = 'Remove';
+      del.addEventListener('click', () => act(() => api('DELETE', null, `?id=${o.id}`), 'Removed'));
+      li.append(text, del);
+      list.appendChild(li);
+    });
+    $('listEmpty').hidden = data.overrides.length > 0;
+  }
+
+  async function act(fn, done) {
+    const buttons = document.querySelectorAll('#app button');
+    buttons.forEach((b) => (b.disabled = true));
+    try {
+      await fn();
+      await load();
+      toast(`${done}. The website updates within a minute.`);
+    } catch (e) {
+      toast(e.message, true);
+    } finally {
+      buttons.forEach((b) => (b.disabled = false));
+    }
+  }
+
+  $('login').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    key = $('key').value.trim();
+    try {
+      await load();
+      localStorage.setItem(KEY_STORE, key);
+      $('key').value = '';
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  $('openNow').addEventListener('click', () => {
+    const now = nowAms();
+    const until = $('hereUntil').value;
+    if (!until || until <= now.time) return toast('Pick a closing time later than now', true);
+    act(() => api('POST', { date: now.date, status: 'Open', from: now.time, until }), `Open until ${until}`);
+  });
+
+  $('closeToday').addEventListener('click', () => {
+    act(() => api('POST', { date: nowAms().date, status: 'Closed' }), 'Closed for today');
+  });
+
+  $('resetToday').addEventListener('click', () => {
+    const o = data.overrides.find((x) => x.date === nowAms().date);
+    if (o) act(() => api('DELETE', null, `?id=${o.id}`), 'Back to regular hours');
+  });
+
+  function prefillPlanHours() {
+    const date = $('planDate').value;
+    const reg = date && data?.regular[weekday(date)];
+    if (reg) { $('planFrom').value = reg.from; $('planUntil').value = reg.until; }
+  }
+  $('planStatus').addEventListener('change', () => {
+    $('planHours').hidden = $('planStatus').value !== 'Open';
+    prefillPlanHours();
+  });
+  $('planDate').addEventListener('change', prefillPlanHours);
+
+  $('plan').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const status = $('planStatus').value;
+    const body = { date: $('planDate').value, status, note: $('planNote').value.trim() };
+    if (status === 'Open') {
+      body.from = $('planFrom').value;
+      body.until = $('planUntil').value;
+      if (body.from >= body.until) return toast('Closing time must be after opening time', true);
+    }
+    act(() => api('POST', body), 'Saved').then(() => { $('planNote').value = ''; });
+  });
+
+  $('logout').addEventListener('click', lock);
+
+  const today = nowAms().date;
+  $('planDate').min = today;
+  $('planDate').value = today;
+
+  if (key) load().catch((e) => { toast(e.message, true); if (!data) lock(); });
+  else lock();
+
+  setInterval(render, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && key) load().catch(() => {}); });
+</script>
+</body>
+</html>
