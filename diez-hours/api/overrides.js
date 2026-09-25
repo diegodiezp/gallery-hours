@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { listOverrides, upsertOverride, deleteOverride } from '../lib/airtable.js';
 import { amsterdamNow, buildSchedule, REGULAR_HOURS } from '../lib/schedule.js';
+import { googleEnabled, syncGoogle } from '../lib/google.js';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -13,6 +14,19 @@ function authorized(req) {
   const a = createHash('sha256').update(given).digest();
   const b = createHash('sha256').update(expected).digest();
   return timingSafeEqual(a, b);
+}
+
+// Tras cada cambio, manda las excepciones futuras a Google Maps.
+// Un fallo de Google nunca bloquea el cambio en la web.
+async function syncAfterChange() {
+  if (!googleEnabled()) return 'off';
+  try {
+    await syncGoogle(await listOverrides(amsterdamNow().date));
+    return 'synced';
+  } catch (e) {
+    console.error(e);
+    return 'failed';
+  }
 }
 
 function validate(body) {
@@ -37,7 +51,7 @@ export default async function handler(req, res) {
       const today = amsterdamNow().date;
       const overrides = await listOverrides(today);
       const schedule = buildSchedule(new Map(overrides.map((o) => [o.date, o])), today);
-      return res.status(200).json({ today, regular: REGULAR_HOURS, overrides, schedule });
+      return res.status(200).json({ today, regular: REGULAR_HOURS, overrides, schedule, google: googleEnabled() });
     }
 
     if (req.method === 'POST') {
@@ -51,14 +65,14 @@ export default async function handler(req, res) {
         until: status === 'Open' ? until : '',
         note: String(note || '').trim(),
       });
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, google: await syncAfterChange() });
     }
 
     if (req.method === 'DELETE') {
       const id = String(req.query.id || '');
       if (!RECORD.test(id)) return res.status(400).json({ error: 'Invalid record id' });
       await deleteOverride(id);
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, google: await syncAfterChange() });
     }
 
     res.setHeader('Allow', 'GET, POST, DELETE');

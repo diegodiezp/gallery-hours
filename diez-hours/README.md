@@ -50,7 +50,7 @@ Opcional: dominio `hours.diez.gallery`.
 **Página fijada Footer**, en vista de código, sustituir el texto del horario por:
 
 ```html
-<div class="diez-hours-slot">Open Fri from 1-6pm and Sat - Sun from 12-5pm or by appointment</div>
+<div class="diez-hours-slot">Open Fri 13:00-18:00, Sat-Sun 12:00-17:00 or by appointment</div>
 ```
 
 El texto de dentro es el respaldo: se ve mientras carga y si la API falla.
@@ -65,3 +65,16 @@ Abre `https://hours.diez.gallery/admin` en Safari, Compartir, Añadir a pantalla
 - `/api/status` devuelve el calendario de los próximos 60 días, cacheado 60 s en el CDN (Airtable recibe como mucho una petición por minuto).
 - El navegador calcula abierto/cerrado cada 20 s con la hora de Ámsterdam, así que el cambio a "Closed" a las 18:00 es exacto aunque la respuesta esté cacheada.
 - Una excepción por fecha. Guardar otra para el mismo día la sustituye.
+
+## 5. Google Maps (opcional)
+
+Tras cada cambio en la mini app, las excepciones futuras se envían como horas especiales
+a la ficha de Google Business Profile. Se activa sola cuando existen estas variables en Vercel:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REFRESH_TOKEN` (scope `https://www.googleapis.com/auth/business.manage`)
+- `GOOGLE_LOCATION_ID` (solo el número del Business Profile ID)
+
+Importante: la sincronización sustituye todas las horas especiales de la ficha.
+Desde que esté activa, gestiona cierres y aperturas extra solo desde la mini app.

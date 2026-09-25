@@ -261,9 +261,12 @@
     const buttons = document.querySelectorAll('#app button');
     buttons.forEach((b) => (b.disabled = true));
     try {
-      await fn();
+      const result = await fn();
       await load();
-      toast(`${done}. The website updates within a minute.`);
+      const google =
+        result?.google === 'synced' ? ' Google Maps updated.' :
+        result?.google === 'failed' ? ' Google Maps not updated.' : '';
+      toast(`${done}. Website updates within a minute.${google}`, result?.google === 'failed');
     } catch (e) {
       toast(e.message, true);
     } finally {
