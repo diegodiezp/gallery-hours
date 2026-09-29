@@ -3,8 +3,8 @@ export const TZ = 'Europe/Amsterdam';
 // Horario habitual. 0 = domingo, 1 = lunes ... 6 = sábado.
 // Ajusta días y horas a los reales de la galería.
 export const REGULAR_HOURS = {
-  5: { from: '13:00', until: '18:00' }, // viernes
-  6: { from: '12:00', until: '17:00' }, // sábado
+  5: { from: '12:00', until: '18:00' }, // viernes
+  6: { from: '13:00', until: '18:00' }, // sábado
   0: { from: '12:00', until: '17:00' }, // domingo
 };
 
