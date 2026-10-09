@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { listOverrides, upsertOverride, deleteOverride } from '../lib/airtable.js';
 import { amsterdamNow, buildSchedule, REGULAR_HOURS } from '../lib/schedule.js';
-import { googleEnabled, syncGoogle } from '../lib/google.js';
+import { googleStatus, syncGoogle } from '../lib/google.js';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -19,13 +19,14 @@ function authorized(req) {
 // Tras cada cambio, manda las excepciones futuras a Google Maps.
 // Un fallo de Google nunca bloquea el cambio en la web.
 async function syncAfterChange() {
-  if (!googleEnabled()) return 'off';
+  const status = googleStatus();
+  if (!status.enabled) return { google: 'off', googleError: `Missing: ${status.missing.join(', ')}` };
   try {
     await syncGoogle(await listOverrides(amsterdamNow().date));
-    return 'synced';
+    return { google: 'synced' };
   } catch (e) {
     console.error(e);
-    return 'failed';
+    return { google: 'failed', googleError: String(e.message || e).slice(0, 400) };
   }
 }
 
@@ -51,7 +52,12 @@ export default async function handler(req, res) {
       const today = amsterdamNow().date;
       const overrides = await listOverrides(today);
       const schedule = buildSchedule(new Map(overrides.map((o) => [o.date, o])), today);
-      return res.status(200).json({ today, regular: REGULAR_HOURS, overrides, schedule, google: googleEnabled() });
+      return res.status(200).json({ today, regular: REGULAR_HOURS, overrides, schedule, google: googleStatus() });
+    }
+
+    // Sincronización manual, sin cambiar nada: botón "Sync Google Maps now".
+    if (req.method === 'POST' && req.query.action === 'sync') {
+      return res.status(200).json({ ok: true, ...(await syncAfterChange()) });
     }
 
     if (req.method === 'POST') {
@@ -65,14 +71,14 @@ export default async function handler(req, res) {
         until: status === 'Open' ? until : '',
         note: String(note || '').trim(),
       });
-      return res.status(200).json({ ok: true, google: await syncAfterChange() });
+      return res.status(200).json({ ok: true, ...(await syncAfterChange()) });
     }
 
     if (req.method === 'DELETE') {
       const id = String(req.query.id || '');
       if (!RECORD.test(id)) return res.status(400).json({ error: 'Invalid record id' });
       await deleteOverride(id);
-      return res.status(200).json({ ok: true, google: await syncAfterChange() });
+      return res.status(200).json({ ok: true, ...(await syncAfterChange()) });
     }
 
     res.setHeader('Allow', 'GET, POST, DELETE');

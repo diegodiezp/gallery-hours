@@ -61,6 +61,7 @@
   li:first-child { border-top: 0; padding-top: 0; }
   .li-sub { color: var(--grey); font-size: .95rem; }
   .empty { color: var(--grey); margin: 0; }
+  #googleError { white-space: pre-wrap; word-break: break-word; font-size: .8rem; background: #f4f4f4; padding: .75rem; border-radius: 10px; margin: 0 0 .75rem; user-select: all; }
 
   #toast {
     position: fixed; left: 50%; bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
@@ -142,6 +143,13 @@
       <h2 id="listTitle">Coming up</h2>
       <ul id="list"></ul>
       <p class="empty" id="listEmpty">No changes planned. The website follows the regular hours.</p>
+    </section>
+
+    <section aria-labelledby="googleTitle">
+      <h2 id="googleTitle">Google Maps</h2>
+      <p class="li-sub" id="googleState"></p>
+      <pre id="googleError" hidden></pre>
+      <button id="googleSync" type="button">Sync Google Maps now</button>
     </section>
 
     <button class="link" id="logout" type="button">Lock this device</button>
@@ -255,6 +263,9 @@
       list.appendChild(li);
     });
     $('listEmpty').hidden = data.overrides.length > 0;
+    if (data.google) $('googleState').textContent = data.google.enabled
+      ? 'Connected. Every change is sent to your Google profile.'
+      : `Off. Missing in Vercel: ${data.google.missing.join(', ')}`;
   }
 
   async function act(fn, done) {
@@ -267,6 +278,7 @@
         result?.google === 'synced' ? ' Google Maps updated.' :
         result?.google === 'failed' ? ' Google Maps not updated.' : '';
       toast(`${done}. Website updates within a minute.${google}`, result?.google === 'failed');
+      showGoogle(result);
     } catch (e) {
       toast(e.message, true);
     } finally {
@@ -324,6 +336,18 @@
     }
     act(() => api('POST', body), 'Saved').then(() => { $('planNote').value = ''; });
   });
+
+  function showGoogle(result) {
+    const g = data?.google;
+    if (g) $('googleState').textContent = g.enabled
+      ? 'Connected. Every change is sent to your Google profile.'
+      : `Off. Missing in Vercel: ${g.missing.join(', ')}`;
+    const err = result?.googleError;
+    $('googleError').hidden = !err || result.google === 'synced';
+    $('googleError').textContent = err || '';
+  }
+
+  $('googleSync').addEventListener('click', () => act(() => api('POST', null, '?action=sync'), 'Sync sent'));
 
   $('logout').addEventListener('click', lock);
 

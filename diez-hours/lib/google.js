@@ -1,15 +1,23 @@
 import { REGULAR_HOURS, weekday } from './schedule.js';
 
-const {
-  GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET,
-  GOOGLE_REFRESH_TOKEN,
-  GOOGLE_LOCATION_ID, // solo el número: el "Business Profile ID" de la ficha
-} = process.env;
+const clean = (v) => String(v || '').trim();
+const GOOGLE_CLIENT_ID = clean(process.env.GOOGLE_CLIENT_ID);
+const GOOGLE_CLIENT_SECRET = clean(process.env.GOOGLE_CLIENT_SECRET);
+const GOOGLE_REFRESH_TOKEN = clean(process.env.GOOGLE_REFRESH_TOKEN);
+// Acepta "123", "locations/123" o la ruta completa "accounts/1/locations/123".
+const GOOGLE_LOCATION_ID = clean(process.env.GOOGLE_LOCATION_ID).replace(/^.*locations\//, '');
 
-// Sin las cuatro variables, la sincronización queda apagada y todo lo demás funciona igual.
-export const googleEnabled = () =>
-  Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REFRESH_TOKEN && /^\d+$/.test(GOOGLE_LOCATION_ID || ''));
+// Qué falta para que la sincronización funcione. Vacío = lista.
+export function googleStatus() {
+  const missing = [];
+  if (!GOOGLE_CLIENT_ID) missing.push('GOOGLE_CLIENT_ID');
+  if (!GOOGLE_CLIENT_SECRET) missing.push('GOOGLE_CLIENT_SECRET');
+  if (!GOOGLE_REFRESH_TOKEN) missing.push('GOOGLE_REFRESH_TOKEN');
+  if (!GOOGLE_LOCATION_ID) missing.push('GOOGLE_LOCATION_ID');
+  else if (!/^\d+$/.test(GOOGLE_LOCATION_ID)) missing.push('GOOGLE_LOCATION_ID (must be a number)');
+  return { enabled: missing.length === 0, missing };
+}
+export const googleEnabled = () => googleStatus().enabled;
 
 async function accessToken() {
   const r = await fetch('https://oauth2.googleapis.com/token', {
